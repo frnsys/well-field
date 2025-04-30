@@ -5,12 +5,16 @@ pub use well_field_macros::*;
 #[derive(Debug)]
 pub struct SetFieldError {
     pub field: &'static str,
-    pub typ: &'static str,
+    pub expected: &'static str,
 }
 impl Error for SetFieldError {}
 impl Display for SetFieldError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Wrong type for field '{}': {}", self.field, self.typ)
+        write!(
+            f,
+            "Wrong type for field '{}': {}",
+            self.field, self.expected
+        )
     }
 }
 

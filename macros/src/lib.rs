@@ -68,28 +68,11 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
         };
         enum_variants.push(variant.clone());
 
-        let ty_string = field_ty.to_token_stream().to_string();
-        if seen_field_types.contains(&ty_string) {
-            continue;
-        }
-
-        let ty_ident = match field_ty {
-            Type::Path(type_path) => {
-                // get last segment like `String` or `u32`
-                let base = &type_path.path.segments.last().unwrap().ident;
-                format_ident!("{}", base.to_string().to_case(Case::Pascal))
-            }
-            _ => format_ident!("UnknownType"),
-        };
-
         let inner_type = if is_primitive(field_ty) {
             quote! { #field_ty }
         } else {
             quote! { <#field_ty as Fielded>::FieldValue }
         };
-
-        field_types.push(quote! { #ty_ident(#inner_type) });
-        seen_field_types.insert(ty_string);
 
         let setter = if is_primitive(field_ty) {
             quote! {
@@ -106,6 +89,23 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
 
         field_setters.push(setter);
 
+        let ty_string = field_ty.to_token_stream().to_string();
+        if seen_field_types.contains(&ty_string) {
+            continue;
+        }
+
+        let ty_ident = match field_ty {
+            Type::Path(type_path) => {
+                // get last segment like `String` or `u32`
+                let base = &type_path.path.segments.last().unwrap().ident;
+                format_ident!("{}", base.to_string().to_case(Case::Pascal))
+            }
+            _ => format_ident!("UnknownType"),
+        };
+
+        field_types.push(quote! { #ty_ident(#inner_type) });
+        seen_field_types.insert(ty_string);
+
         try_into_impls.push(quote! {
             impl TryInto<#inner_type> for #value_enum_name {
                 type Error = SetFieldError;
@@ -114,7 +114,7 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
                         Self::#ty_ident(value) => Ok(value),
                         _ => Err(SetFieldError {
                             field: stringify!(#field_name),
-                            typ: std::any::type_name::<#inner_type>()
+                            expected: std::any::type_name::<#inner_type>()
                         })
                     }
                 }
@@ -130,11 +130,12 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         #[allow(non_camel_case_types)]
-        enum #enum_name {
+        #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+        pub enum #enum_name {
             #(#enum_variants,)*
         }
 
-        enum #value_enum_name {
+        pub enum #value_enum_name {
             #(#field_types,)*
         }
 
@@ -190,4 +191,3 @@ fn is_primitive(ty: &Type) -> bool {
         false
     }
 }
-
