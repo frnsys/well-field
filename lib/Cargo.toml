@@ -1,0 +1,7 @@
+[package]
+name = "well-field"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+well-field-macros = { path = "../macros" }
