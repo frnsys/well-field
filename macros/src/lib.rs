@@ -102,12 +102,18 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
 
         let setter = if is_primitive(field_ty) {
             quote! {
-                Self::Field::#variant_name => self.#field_name = value.try_into()?
+                Self::Field::#variant_name => self.#field_name = value.try_into().map_err(|mut err: SetFieldError| {
+                    err.field = stringify!(#variant_name);
+                    err
+                })?
             }
         } else {
             quote! {
                 Self::Field::#variant_name(inner) => {
-                    let inner_value: #inner_type = value.try_into()?;
+                    let inner_value: #inner_type = value.try_into().map_err(|mut err: SetFieldError| {
+                        err.field = stringify!(#variant_name);
+                        err
+                    })?;
                     self.#field_name.set_field(inner, inner_value)?
                 }
             }
@@ -138,8 +144,9 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
                 fn try_into(self) -> Result<#inner_type, Self::Error> {
                     match self {
                         Self::#ty_ident(value) => Ok(value),
-                        _ => Err(SetFieldError {
-                            field: stringify!(#field_name),
+                        other => Err(SetFieldError {
+                            field: "",
+                            received: format!("{:?}", other),
                             expected: std::any::type_name::<#inner_type>()
                         })
                     }
