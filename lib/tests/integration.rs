@@ -1,6 +1,7 @@
 use well_field::{FieldEnum, Fielded, SetFieldError};
 
 #[derive(FieldEnum)]
+#[field(derive(Debug))]
 struct MyStruct {
     num: f32,
     count: usize,
@@ -13,6 +14,7 @@ struct MyStruct {
 }
 
 #[derive(FieldEnum)]
+#[field(derive(Debug))]
 struct InnerStruct {
     label: String,
     prop: f32,
@@ -51,4 +53,6 @@ fn test_set_field() {
         s.set_field(MyStructField::Nested(InnerStructField::Prop), 1)
             .is_err()
     );
+
+    println!("{:?}", MyStructField::Num);
 }

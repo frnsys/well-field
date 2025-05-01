@@ -3,7 +3,9 @@ use std::collections::HashSet;
 use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::{Data, DeriveInput, Fields, Type, meta::ParseNestedMeta, parse_macro_input};
+use syn::{
+    Data, DeriveInput, Fields, Path, Type, meta::ParseNestedMeta, parse_macro_input, parse_quote,
+};
 
 #[proc_macro_derive(FieldEnum, attributes(field))]
 pub fn field_enum_derive(input: TokenStream) -> TokenStream {
@@ -11,6 +13,30 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
     let struct_name = input.ident;
     let enum_name = format_ident!("{}Field", struct_name);
     let value_enum_name = format_ident!("{}Value", struct_name);
+
+    let mut derives: Vec<Path> = vec![
+        parse_quote!(Clone),
+        parse_quote!(Copy),
+        parse_quote!(PartialEq),
+        parse_quote!(Eq),
+        parse_quote!(Hash),
+    ];
+    for attr in input.attrs {
+        if attr.path().is_ident("field") {
+            attr.parse_nested_meta(|meta| {
+                let ParseNestedMeta { path, .. } = &meta;
+                if path.is_ident("derive") {
+                    meta.parse_nested_meta(|meta| {
+                        derives.push(meta.path);
+                        Ok(())
+                    })
+                } else {
+                    Ok(())
+                }
+            })
+            .unwrap();
+        }
+    }
 
     let fields = match input.data {
         Data::Struct(data_struct) => match data_struct.fields {
@@ -128,13 +154,20 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
         });
     }
 
+    let derive_attr = if !derives.is_empty() {
+        Some(quote! { #[derive( #(#derives),* )] })
+    } else {
+        None
+    };
+
     let expanded = quote! {
         #[allow(non_camel_case_types)]
-        #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+        #derive_attr
         pub enum #enum_name {
             #(#enum_variants,)*
         }
 
+        #[derive(Debug)]
         pub enum #value_enum_name {
             #(#field_types,)*
         }
