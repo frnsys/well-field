@@ -1,3 +1,5 @@
+#![allow(private_interfaces)]
+
 use well_field::{FieldEnum, Fielded, SetFieldError};
 
 #[derive(FieldEnum)]
@@ -11,6 +13,9 @@ struct MyStruct {
     #[allow(dead_code)]
     #[field(skip)]
     skip_me: usize,
+
+    #[field(swap_only)]
+    inner: InnerEnum,
 }
 
 #[derive(FieldEnum)]
@@ -18,6 +23,14 @@ struct MyStruct {
 struct InnerStruct {
     label: String,
     prop: f32,
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+enum InnerEnum {
+    A,
+    B,
+    C,
 }
 
 #[test]
@@ -31,6 +44,7 @@ fn test_set_field() {
             prop: 123.,
         },
         skip_me: 100,
+        inner: InnerEnum::B,
     };
 
     s.set_field(MyStructField::Num, 789.).unwrap();

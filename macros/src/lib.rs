@@ -61,6 +61,15 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
     let mut seen_field_types = HashSet::new();
 
     for field in fields {
+        let field_ty = &field.ty;
+
+        // This field can only be replaced as a whole,
+        // i.e. no nested field access.
+        // Primitive types are treated this way,
+        // but other fields can be tagged to be treated
+        // this way using `#[field(swap_only)]`.
+        let mut swap_only = is_primitive(field_ty);
+
         let mut skip = false;
         for attr in field.attrs {
             if attr.path().is_ident("field") {
@@ -68,6 +77,8 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
                     let ParseNestedMeta { path, .. } = &meta;
                     if path.is_ident("skip") {
                         skip = true;
+                    } else if path.is_ident("swap_only") {
+                        swap_only = true;
                     }
                     Ok(())
                 })
@@ -79,11 +90,10 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
             continue;
         }
 
-        let field_ty = &field.ty;
         let field_name = field.ident.unwrap();
         let variant_name = format_ident!("{}", field_name.to_string().to_case(Case::Pascal));
 
-        let variant = if is_primitive(field_ty) {
+        let variant = if swap_only {
             quote! {
                 #variant_name
             }
@@ -94,13 +104,13 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
         };
         enum_variants.push(variant.clone());
 
-        let inner_type = if is_primitive(field_ty) {
+        let inner_type = if swap_only {
             quote! { #field_ty }
         } else {
             quote! { <#field_ty as Fielded>::FieldValue }
         };
 
-        let setter = if is_primitive(field_ty) {
+        let setter = if swap_only {
             quote! {
                 Self::Field::#variant_name => self.#field_name = value.try_into().map_err(|mut err: SetFieldError| {
                     err.field = stringify!(#variant_name);
