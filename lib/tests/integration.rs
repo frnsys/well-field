@@ -26,7 +26,7 @@ struct InnerStruct {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum InnerEnum {
     A,
     B,

@@ -21,6 +21,7 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
         parse_quote!(Eq),
         parse_quote!(Hash),
     ];
+    let mut value_derives: Vec<Path> = vec![parse_quote!(Clone), parse_quote!(PartialEq)];
     for attr in input.attrs {
         if attr.path().is_ident("field") {
             attr.parse_nested_meta(|meta| {
@@ -28,6 +29,11 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
                 if path.is_ident("derive") {
                     meta.parse_nested_meta(|meta| {
                         derives.push(meta.path);
+                        Ok(())
+                    })
+                } else if path.is_ident("derive_value") {
+                    meta.parse_nested_meta(|meta| {
+                        value_derives.push(meta.path);
                         Ok(())
                     })
                 } else {
@@ -57,6 +63,7 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
     let mut enum_variants = Vec::new();
     let mut field_types = Vec::new();
     let mut field_setters = Vec::new();
+    let mut field_getters = Vec::new();
     let mut try_into_impls = Vec::new();
     let mut seen_field_types = HashSet::new();
 
@@ -129,7 +136,22 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
             }
         };
 
+        let getter = if swap_only {
+            quote! {
+                Self::Field::#variant_name => {
+                    self.#field_name.clone().into()
+                }
+            }
+        } else {
+            quote! {
+                Self::Field::#variant_name(inner) => {
+                    self.#field_name.get_field(inner).into()
+                }
+            }
+        };
+
         field_setters.push(setter);
+        field_getters.push(getter);
 
         let ty_string = field_ty.to_token_stream().to_string();
         if seen_field_types.contains(&ty_string) {
@@ -177,6 +199,12 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
         None
     };
 
+    let derive_value_attr = if !value_derives.is_empty() {
+        Some(quote! { #[derive( #(#value_derives),* )] })
+    } else {
+        None
+    };
+
     let expanded = quote! {
         #[allow(non_camel_case_types)]
         #derive_attr
@@ -184,7 +212,7 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
             #(#enum_variants,)*
         }
 
-        #[derive(Debug)]
+        #derive_value_attr
         pub enum #value_enum_name {
             #(#field_types,)*
         }
@@ -201,6 +229,12 @@ pub fn field_enum_derive(input: TokenStream) -> TokenStream {
                     #(#field_setters,)*
                 }
                 Ok(())
+            }
+
+            fn get_field(&self, field: &Self::Field) -> Self::FieldValue {
+                match field {
+                    #(#field_getters,)*
+                }
             }
         }
     };

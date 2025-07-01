@@ -32,4 +32,6 @@ pub trait Fielded {
         field: Self::Field,
         value: V,
     ) -> Result<(), SetFieldError>;
+
+    fn get_field(&self, field: &Self::Field) -> Self::FieldValue;
 }
